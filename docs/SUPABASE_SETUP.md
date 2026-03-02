@@ -50,7 +50,7 @@ For this project, we use Supabase specifically for **Google OAuth authentication
    - Name: `Code Audit Platform`
    - Authorized redirect URIs:
      ```
-     http://localhost:5164/auth/callback
+     http://localhost:5172/auth/callback
      ```
    - Click **Create**
 7. Copy the **Client ID** and **Client Secret**
@@ -60,7 +60,7 @@ For this project, we use Supabase specifically for **Google OAuth authentication
 1. Go back to Supabase → Authentication → Providers → Google
 2. Paste the **Client ID** from Google Cloud Console
 3. Paste the **Client Secret** from Google Cloud Console
-4. Add the redirect URL: `http://localhost:5164/auth/callback`
+4. Add the redirect URL: `http://localhost:5172/auth/callback`
 5. Click **Save**
 
 ---
@@ -136,7 +136,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 # ===========================================
 # CORS
 # ===========================================
-CORS_ORIGINS=["http://localhost:5164","http://localhost:5164"]
+CORS_ORIGINS=["http://localhost:5172","http://localhost:5172"]
 ```
 
 ---
@@ -177,7 +177,7 @@ make up-docker-dev
 
 That's it! Services are now running with hot reload:
 - Backend:  http://localhost:8000 (auto-reloads on code change)
-- Frontend: http://localhost:5164 (Vite HMR)
+- Frontend: http://localhost:5172 (Vite HMR)
 - API Docs: http://localhost:8000/docs
 
 ### Option B: Production Docker (No Hot Reload)
@@ -195,7 +195,7 @@ make dev
 
 ### Test Google OAuth
 
-1. Open http://localhost:5164 in your browser
+1. Open http://localhost:5172 in your browser
 2. Click "Login with Google"
 3. You should be redirected to Google's OAuth page
 4. After authorizing, you should be redirected back to the app
@@ -212,7 +212,7 @@ make dev
 
 ### "Redirect URI mismatch" error
 
-- Make sure the redirect URL in Google Cloud Console matches: `http://localhost:5164/auth/callback`
+- Make sure the redirect URL in Google Cloud Console matches: `http://localhost:5172/auth/callback`
 - Check for trailing slashes or protocol mismatches (http vs https)
 
 ### User not being created in database
