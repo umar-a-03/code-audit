@@ -1,0 +1,9 @@
+# Docker
+*.log
+docker-data/
+
+# General
+.DS_Store
+Thumbs.db
+
+*env*

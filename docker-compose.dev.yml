@@ -1,0 +1,52 @@
+# ===========================================
+# Code Audit Platform - Development Override
+# ===========================================
+# Run with: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  # ===========================================
+  # Backend API - Development Mode
+  # ===========================================
+  api:
+    volumes:
+      - ./backend:/app
+      - uploads_data:/app/uploads
+      - repos_data:/app/repos
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/codeaudit
+      - REDIS_URL=redis://redis:6379/0
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  # ===========================================
+  # Frontend - Development Mode (Vite with HMR)
+  # ===========================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: code-audit-frontend-dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules  # Prevents overwriting node_modules in container
+    environment:
+      - VITE_API_URL=http://localhost:8080/api/v1
+      - VITE_DEV_MODE=true
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    ports:
+      - "5164:5173"
+
+  # ===========================================
+  # RQ Worker - Development Mode
+  # ===========================================
+  worker:
+    volumes:
+      - ./backend:/app
+      - uploads_data:/app/uploads
+      - repos_data:/app/repos
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/codeaudit
+      - REDIS_URL=redis://redis:6379/0
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG

@@ -1,0 +1,187 @@
+# ===========================================
+# Code Audit Platform - Docker Compose
+# ===========================================
+
+services:
+  # ===========================================
+  # Backend API - FastAPI
+  # ===========================================
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: code-audit-api
+    restart: unless-stopped
+    ports:
+      - "8080:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/codeaudit
+      - REDIS_URL=redis://redis:6379/0
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend:/app
+      - uploads_data:/app/uploads
+      - repos_data:/app/repos
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - code-audit-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ===========================================
+  # PostgreSQL Database
+  # ===========================================
+  db:
+    image: postgres:16-alpine
+    container_name: code-audit-db
+    restart: unless-stopped
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: codeaudit
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - code-audit-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d codeaudit"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===========================================
+  # Redis - Queue & Cache
+  # ===========================================
+  redis:
+    image: redis:7-alpine
+    container_name: code-audit-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - code-audit-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===========================================
+  # RQ Worker - Background Jobs
+  # ===========================================
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: rq worker --url redis://redis:6379/0
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/codeaudit
+      - REDIS_URL=redis://redis:6379/0
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend:/app
+      - uploads_data:/app/uploads
+      - repos_data:/app/repos
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - code-audit-network
+    deploy:
+      replicas: 2
+
+  # ===========================================
+  # Frontend - React App
+  # ===========================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: code-audit-frontend
+    restart: unless-stopped
+    ports:
+      - "5164:5164"
+    environment:
+      - VITE_API_URL=http://localhost:8080/api/v1
+    env_file:
+      - ./frontend/.env
+    networks:
+      - code-audit-network
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # ===========================================
+  # Redis Commander - Redis GUI (Optional)
+  # ===========================================
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: code-audit-redis-ui
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    depends_on:
+      - redis
+    networks:
+      - code-audit-network
+    profiles:
+      - tools
+
+  # ===========================================
+  # pgAdmin - PostgreSQL GUI (Optional)
+  # ===========================================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: code-audit-pgadmin
+    restart: unless-stopped
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@codeaudit.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - db
+    networks:
+      - code-audit-network
+    profiles:
+      - tools
+
+# ===========================================
+# Networks
+# ===========================================
+networks:
+  code-audit-network:
+    driver: bridge
+
+# ===========================================
+# Volumes
+# ===========================================
+volumes:
+  postgres_data:
+  redis_data:
+  pgadmin_data:
+  uploads_data:
+  repos_data:

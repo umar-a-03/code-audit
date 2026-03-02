@@ -1,0 +1,19 @@
+# Development Dockerfile for React frontend
+# Runs Vite dev server with hot module replacement
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies first (cached layer)
+COPY package*.json ./
+RUN npm i
+
+# Copy source code
+COPY . .
+
+# Expose Vite dev server port (must match vite.config.js port)
+EXPOSE 5173
+
+# Run Vite in development mode with HMR
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
