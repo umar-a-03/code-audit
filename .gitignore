@@ -1,9 +1,75 @@
-# Docker
-*.log
-docker-data/
-
-# General
+############################################
+# GLOBAL / OS / EDITORS
+############################################
 .DS_Store
 Thumbs.db
 
-*env*
+.vscode/
+.idea/
+
+############################################
+# FRONTEND (React + Vite)  → frontend/
+############################################
+frontend/node_modules/
+
+# Vite build output
+frontend/dist/
+frontend/dist-ssr/
+
+# Frontend env files
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# Frontend logs
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
+
+# TypeScript / ESLint cache
+frontend/*.tsbuildinfo
+frontend/.eslintcache
+
+############################################
+# BACKEND (FastAPI / Python) → backend/
+############################################
+# Python cache
+backend/__pycache__/
+backend/*.py[cod]
+backend/*.pyo
+
+# Virtual environments
+backend/venv/
+backend/.venv/
+backend/env/
+backend/ENV/
+
+# Backend env files
+backend/.env
+backend/.env.*
+
+# Logs
+backend/*.log
+
+# Testing / coverage
+backend/.pytest_cache/
+backend/.coverage
+backend/htmlcov/
+
+# Type checking / linting
+backend/.mypy_cache/
+backend/.ruff_cache/
+
+# Build / packaging
+backend/build/
+backend/dist/
+backend/*.egg-info/
+
+############################################
+# DOCKER (optional but common)
+############################################
+docker-data/
+*.log
+
+!*env.example
