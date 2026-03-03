@@ -10,7 +10,7 @@ from app.adapters.persistence.repositories import (
     BatchJobRepository,
     ProjectRepository,
 )
-from app.adapters.persistence.session import get_db_session_context
+from app.adapters.persistence.session import get_db_session_context, async_session_maker
 from app.adapters.persistence.models.audit import AnalysisJob, BatchJob
 from app.adapters.persistence.models.project import Project
 
@@ -32,8 +32,8 @@ class AuditService:
         if self._session:
             return self._session
         # For backward compatibility with routes that don't pass session
-        async with get_db_session_context() as session:
-            return session
+        # Create a new session that will be managed explicitly
+        return async_session_maker()
 
     async def _get_repo(self) -> AnalysisJobRepository:
         """Get repository instance."""
@@ -78,6 +78,9 @@ class AuditService:
             analysis_type=analysis_type,
             options=options,
         )
+        # Close session if we created it (not passed from route)
+        if not self._session:
+            await session.close()
         return job
 
     async def get_by_id_and_client(
@@ -96,7 +99,11 @@ class AuditService:
         """
         session = await self._get_session()
         repo = AnalysisJobRepository(session)
-        return await repo.get_by_id_and_client(job_id, client_id)
+        result = await repo.get_by_id_and_client(job_id, client_id)
+        # Close session if we created it (not passed from route)
+        if not self._session:
+            await session.close()
+        return result
 
     async def list_by_client(
         self,
@@ -122,7 +129,7 @@ class AuditService:
         """
         session = await self._get_session()
         repo = AnalysisJobRepository(session)
-        return await repo.list_by_client(
+        result = await repo.list_by_client(
             client_id=client_id,
             skip=skip,
             limit=limit,
@@ -130,6 +137,10 @@ class AuditService:
             sort_by=sort_by,
             sort_order=sort_order,
         )
+        # Close session if we created it (not passed from route)
+        if not self._session:
+            await session.close()
+        return result
 
     # Alias for compatibility with dashboard route
     async def list_audits(
@@ -191,6 +202,24 @@ class AuditService:
         repo = AnalysisJobRepository(session)
         return await repo.count_by_status(client_id, status)
 
+    async def get_by_id_with_relations(
+        self,
+        job_id: UUID,
+        client_id: UUID,
+    ) -> Optional[AnalysisJob]:
+        """Get audit job by ID and client with relations loaded.
+
+        Args:
+            job_id: Job ID.
+            client_id: Client ID.
+
+        Returns:
+            AnalysisJob with relations if found, None otherwise.
+        """
+        session = await self._get_session()
+        repo = AnalysisJobRepository(session)
+        return await repo.get_by_id_with_relations(job_id, client_id)
+
     async def get_avg_quality_score(self, client_id: UUID) -> Optional[float]:
         """Get average quality score for a client.
 
@@ -218,6 +247,9 @@ class AuditService:
         session = await self._get_session()
         repo = AnalysisJobRepository(session)
         await repo.update_status(job_id, status)
+        # Close session if we created it (not passed from route)
+        if not self._session:
+            await session.close()
 
     async def update_rq_job_id(
         self,
@@ -233,6 +265,9 @@ class AuditService:
         session = await self._get_session()
         repo = AnalysisJobRepository(session)
         await repo.update_rq_job_id(job_id, rq_job_id)
+        # Close session if we created it (not passed from route)
+        if not self._session:
+            await session.close()
 
 
 class BatchService:

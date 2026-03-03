@@ -17,12 +17,12 @@ def run_worker() -> None:
     """Run the RQ worker."""
     redis = Redis.from_url(settings.REDIS_URL)
 
-    with Worker(
+    worker = Worker(
         [settings.RQ_QUEUE_NAME],
         connection=redis,
         name=f"worker-{settings.ENVIRONMENT}",
-    ) as worker:
-        worker.work(with_scheduler=True)
+    )
+    worker.work(with_scheduler=True)
 
 
 if __name__ == "__main__":

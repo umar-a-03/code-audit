@@ -261,12 +261,12 @@ export const getBatchStatus = async (batchId) => {
 
 /**
  * Get audit report
- * @param {string} jobId - Job ID
+ * @param {string} jobId - Job ID (audit ID)
  * @param {string} [format='json'] - Format (json, html, pdf)
  * @returns {Promise<Object>} Report data
  */
 export const getReport = async (jobId, format = 'json') => {
-  return api.get(`/reports/${jobId}`, {
+  return api.get(`/audits/${jobId}/report`, {
     params: { format },
     responseType: format === 'pdf' ? 'blob' : 'json'
   });

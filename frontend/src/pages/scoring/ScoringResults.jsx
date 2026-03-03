@@ -3,6 +3,26 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getSubmissionStatus, getScoreReport, subscribeToProgress } from '../../services/scoringService';
 import { CodeMetrics, EvidenceSection, ScoreDeductions, EnhancedFlags, InterviewQuestions, UISnapshotsSection } from '../../components/score-report';
 
+// Helper function to extract error messages from various error formats
+const getErrorMessage = (err) => {
+  if (!err) return 'An error occurred';
+  if (err.detail) {
+    if (Array.isArray(err.detail)) {
+      // Pydantic validation error - extract messages
+      return err.detail.map(e => e.msg || 'Validation error').join(', ');
+    } else if (typeof err.detail === 'string') {
+      return err.detail;
+    } else if (err.detail && typeof err.detail === 'object' && err.detail.message) {
+      return String(err.detail.message);
+    }
+  } else if (err.message && typeof err.message === 'string') {
+    return err.message;
+  } else if (err.message) {
+    return String(err.message);
+  }
+  return 'An unknown error occurred';
+};
+
 // Score category display configuration
 const CATEGORY_CONFIG = {
   // Traditional categories (when no custom rules)
@@ -105,8 +125,10 @@ const DynamicScoreCategories = ({ scores }) => {
 };
 
 const ScoringResults = () => {
-  const { submissionId } = useParams();
+  const { id, submissionId } = useParams();
   const navigate = useNavigate();
+  // Use either 'id' (from /audits/:id route) or 'submissionId' (from legacy /scoring/:submissionId route)
+  const auditId = id || submissionId;
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -140,14 +162,14 @@ const ScoringResults = () => {
   // Fetch the full score report
   const fetchReport = useCallback(async () => {
     try {
-      const reportData = await getScoreReport(submissionId);
+      const reportData = await getScoreReport(auditId);
       setReport(reportData);
       setLoading(false);
     } catch (err) {
       console.error('Failed to fetch report:', err);
       // Fallback: try to get at least the status
       try {
-        const statusResult = await getSubmissionStatus(submissionId);
+        const statusResult = await getSubmissionStatus(auditId);
         if (statusResult.status === 'failed') {
           setError(statusResult.error_message || 'Scoring failed');
         } else {
@@ -158,7 +180,7 @@ const ScoringResults = () => {
       }
       setLoading(false);
     }
-  }, [submissionId]);
+  }, [auditId]);
 
   useEffect(() => {
     let unsubscribe = null;
@@ -168,7 +190,7 @@ const ScoringResults = () => {
     const initialize = async () => {
       try {
         // Get initial status
-        const result = await getSubmissionStatus(submissionId);
+        const result = await getSubmissionStatus(auditId);
 
         if (!mounted) return;
 
@@ -180,12 +202,12 @@ const ScoringResults = () => {
           setLoading(false);
         } else {
           // Subscribe to WebSocket for real-time updates
-          unsubscribe = subscribeToProgress(submissionId, handleProgressUpdate);
+          unsubscribe = subscribeToProgress(auditId, handleProgressUpdate);
 
           // Also poll as fallback
           pollInterval = setInterval(async () => {
             try {
-              const statusResult = await getSubmissionStatus(submissionId);
+              const statusResult = await getSubmissionStatus(auditId);
 
               if (!mounted) return;
 
@@ -203,7 +225,7 @@ const ScoringResults = () => {
           }, 3000);
         }
       } catch (err) {
-        setError(err.detail || 'Failed to fetch status');
+        setError(getErrorMessage(err) || 'Failed to fetch status');
         setLoading(false);
       }
     };
@@ -215,7 +237,7 @@ const ScoringResults = () => {
       if (pollInterval) clearInterval(pollInterval);
       if (unsubscribe) unsubscribe();
     };
-  }, [submissionId, handleProgressUpdate, fetchReport]);
+  }, [auditId, handleProgressUpdate, fetchReport]);
 
   // Get stage display info
   const getStageInfo = (stage) => {
@@ -306,7 +328,7 @@ const ScoringResults = () => {
 
         {/* Submission ID */}
         <p className="mt-6 text-xs text-gray-600 font-mono">
-          ID: {submissionId}
+          ID: {auditId}
         </p>
       </div>
     );
@@ -340,7 +362,7 @@ const ScoringResults = () => {
             <span className="text-primary">&gt;&gt;</span> SCORE REPORT
           </h1>
           <p className="text-gray-400 text-sm font-mono">
-            Submission ID: {submissionId}
+            Submission ID: {auditId}
           </p>
         </div>
         <button

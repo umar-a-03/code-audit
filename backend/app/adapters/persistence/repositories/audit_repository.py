@@ -147,7 +147,7 @@ class AnalysisJobRepository:
             priority=5,
         )
         self._session.add(job)
-        await self._session.flush()
+        await self._session.commit()
         return job
 
     async def update_status(self, job_id: UUID, status: str) -> Optional[AnalysisJob]:

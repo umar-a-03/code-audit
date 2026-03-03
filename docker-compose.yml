@@ -88,10 +88,11 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
-    command: rq worker --url redis://redis:6379/0
+    command: ["python", "-m", "app.workers.worker"]
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/codeaudit
       - REDIS_URL=redis://redis:6379/0
+      - PYTHONPATH=/app
     env_file:
       - ./backend/.env
     volumes:

@@ -3,15 +3,121 @@
 These functions can be enqueued and executed by RQ workers.
 """
 
+import asyncio
 import logging
 import uuid
+from datetime import datetime, timezone
 
 from rq import get_current_job
+from sqlalchemy import select
 
 from app.config import get_settings
+from app.adapters.persistence.session import async_session_maker
+from app.adapters.persistence.models.audit import AnalysisJob, AnalysisResult
+from app.adapters.persistence.repositories import AnalysisJobRepository
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+
+async def _update_job_status(job_id: str, status: str, error_message: str = None):
+    """Update job status in database.
+
+    Args:
+        job_id: Job ID.
+        status: New status.
+        error_message: Optional error message.
+    """
+    async with async_session_maker() as session:
+        repo = AnalysisJobRepository(session)
+        job = await repo.get_by_id(uuid.UUID(job_id))
+        if job:
+            job.status = status
+            if status == "running":
+                job.started_at = datetime.now(timezone.utc)
+            elif status in ["completed", "failed"]:
+                job.completed_at = datetime.now(timezone.utc)
+            if error_message:
+                job.error_message = error_message
+            await session.commit()
+            logger.info(f"Updated job {job_id} status to {status}")
+        else:
+            logger.error(f"Job {job_id} not found when updating status")
+
+
+async def _create_analysis_result(job_id: str, client_id: str, summary: dict):
+    """Create analysis result in database.
+
+    Args:
+        job_id: Job ID.
+        client_id: Client ID.
+        summary: Analysis summary.
+    """
+    async with async_session_maker() as session:
+        result = AnalysisResult(
+            job_id=uuid.UUID(job_id),
+            client_id=uuid.UUID(client_id),
+            summary=summary,
+        )
+        session.add(result)
+        await session.commit()
+        logger.info(f"Created analysis result for job {job_id}")
+
+
+async def _analyze_repository_async(
+    job_id: str,
+    repo_url: str,
+    branch: str,
+    client_id: str,
+    options: dict,
+) -> dict:
+    """Async wrapper for repository analysis.
+
+    Args:
+        job_id: Analysis job ID.
+        repo_url: Repository URL.
+        branch: Branch to analyze.
+        client_id: Client ID.
+        options: Analysis options.
+
+    Returns:
+        Analysis results.
+    """
+    # Update status to running
+    await _update_job_status(job_id, "running")
+
+    # TODO: Implement actual analysis logic:
+    # 1. Clone repository
+    # 2. Scan file tree
+    # 3. Run rule engine
+    # 4. Calculate metrics
+    # 5. Send to AI for analysis
+    # 6. Generate report
+    # 7. Store results
+
+    # Simulate some analysis work (non-blocking)
+    await asyncio.sleep(2)
+
+    # Placeholder result
+    result = {
+        "job_id": job_id,
+        "status": "completed",
+        "summary": {
+            "total_files": 42,
+            "total_lines": 1500,
+            "languages": {"python": 60, "javascript": 30, "html": 10},
+            "quality_score": 75,
+        },
+    }
+
+    # Create analysis result in database
+    await _create_analysis_result(job_id, client_id, result["summary"])
+
+    # Update status to completed
+    await _update_job_status(job_id, "completed")
+
+    logger.info(f"Completed analysis for {repo_url}")
+    return result
 
 
 def analyze_repository(
@@ -33,35 +139,23 @@ def analyze_repository(
     Returns:
         Analysis results.
     """
-    job = get_current_job()
-    if job:
-        job.connection_id = str(uuid.uuid4())
+    rq_job = get_current_job()
+    if rq_job:
+        rq_job.connection_id = str(uuid.uuid4())
 
     logger.info(f"Starting analysis for {repo_url} (branch: {branch})")
 
-    # TODO: Implement actual analysis logic:
-    # 1. Clone repository
-    # 2. Scan file tree
-    # 3. Run rule engine
-    # 4. Calculate metrics
-    # 5. Send to AI for analysis
-    # 6. Generate report
-    # 7. Store results
-
-    # Placeholder result
-    result = {
-        "job_id": job_id,
-        "status": "completed",
-        "summary": {
-            "total_files": 0,
-            "total_lines": 0,
-            "languages": {},
-            "quality_score": 0,
-        },
-    }
-
-    logger.info(f"Completed analysis for {repo_url}")
-    return result
+    try:
+        # Run all async operations in a single event loop
+        return asyncio.run(_analyze_repository_async(job_id, repo_url, branch, client_id, options))
+    except Exception as e:
+        logger.error(f"Analysis failed for {repo_url}: {e}", exc_info=True)
+        # Update status to failed with error message in a new event loop (since the first one is gone)
+        try:
+            asyncio.run(_update_job_status(job_id, "failed", str(e)))
+        except Exception as e2:
+            logger.error(f"Failed to update job status to failed: {e2}", exc_info=True)
+        raise
 
 
 def generate_report(
