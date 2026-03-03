@@ -56,7 +56,7 @@ async def get_dashboard_stats(
             RecentAuditItem(
                 id=str(audit.id),
                 project_name=audit.project.name if audit.project else None,
-                repo_url=audit.project.repo_url if audit.project else None,
+                repo_url=audit.repo_url or (audit.project.repo_url if audit.project else None),
                 status=audit.status,
                 analysis_type=audit.analysis_type,
                 quality_score=audit.result.quality_score if audit.result else None,

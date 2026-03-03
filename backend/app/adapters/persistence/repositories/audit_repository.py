@@ -97,7 +97,14 @@ class AnalysisJobRepository:
         Returns:
             List of analysis jobs.
         """
-        stmt = select(AnalysisJob).where(AnalysisJob.client_id == client_id)
+        stmt = (
+            select(AnalysisJob)
+            .where(AnalysisJob.client_id == client_id)
+            .options(
+                selectinload(AnalysisJob.project),
+                selectinload(AnalysisJob.results),
+            )
+        )
 
         if status_filter:
             stmt = stmt.where(AnalysisJob.status == status_filter)

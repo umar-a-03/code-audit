@@ -343,10 +343,42 @@ export const pollAuditStatus = async (auditId, onProgress, intervalMs = 2000) =>
         const response = await getAudit(auditId);
         const audit = response.data || response;
 
+        // Progress mapping based on backend status
+        const progressMap = {
+          'pending': 0,
+          'running': 0,
+          'cloning': 20,
+          'scanning': 40,
+          'analyzing': 60,
+          'ai_review': 80,
+          'scoring': 90,
+          'completed': 100,
+          'failed': 0,
+          'cancelled': 0,
+        };
+
+        // Stage mapping
+        const stageMap = {
+          'pending': 'initializing',
+          'running': 'processing',
+          'cloning': 'cloning',
+          'scanning': 'scanning',
+          'analyzing': 'analyzing',
+          'ai_review': 'ai_review',
+          'scoring': 'scoring',
+          'completed': 'completed',
+          'failed': 'failed',
+          'cancelled': 'cancelled',
+        };
+
+        const progress = progressMap[audit.status] || 0;
+        const stage = stageMap[audit.status] || 'processing';
+
         onProgress?.({
           audit_id: auditId,
           status: audit.status,
-          progress: audit.status === 'completed' ? 100 : audit.status === 'running' ? 50 : 0,
+          progress: progress,
+          stage: stage,
           message: audit.error_message || `Status: ${audit.status}`,
         });
 

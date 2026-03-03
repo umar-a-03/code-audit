@@ -43,6 +43,10 @@ class AnalysisJob(Base, TimestampMixin):
         index=True,
     )
 
+    # Repository information
+    repo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    branch: Mapped[str | None] = mapped_column(String(100), default="main", nullable=True)
+
     # Job status
     status: Mapped[str] = mapped_column(
         String(50),
@@ -86,6 +90,15 @@ class AnalysisJob(Base, TimestampMixin):
         back_populates="job",
         cascade="all, delete-orphan",
     )
+
+    @property
+    def result(self) -> "AnalysisResult | None":
+        """Get the first result if available.
+
+        Returns:
+            First AnalysisResult or None.
+        """
+        return self.results[0] if self.results else None
 
     def __repr__(self) -> str:
         return f"<AnalysisJob(id={self.id}, status={self.status}, analysis_type={self.analysis_type})>"
@@ -148,6 +161,15 @@ class AnalysisResult(Base, TimestampMixin):
 
     # Relationships
     job: Mapped["AnalysisJob"] = relationship("AnalysisJob", back_populates="results")
+
+    @property
+    def quality_score(self) -> int | None:
+        """Get quality score from summary.
+
+        Returns:
+            Quality score or None.
+        """
+        return self.summary.get("quality_score") if self.summary else None
 
     def __repr__(self) -> str:
         return f"<AnalysisResult(id={self.id}, job_id={self.job_id})>"

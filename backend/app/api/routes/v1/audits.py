@@ -160,8 +160,32 @@ async def get_audit(
     if not audit:
         raise NotFoundException("Audit not found")
 
-    # Get progress from Redis cache if available
-    # TODO: Implement Redis status cache
+    # Calculate progress based on status
+    progress_map = {
+        "pending": 0,
+        "running": 0,
+        "cloning": 20,
+        "scanning": 40,
+        "analyzing": 60,
+        "ai_review": 80,
+        "scoring": 90,
+        "completed": 100,
+        "failed": 0,
+        "cancelled": 0,
+    }
+
+    current_file_map = {
+        "pending": "Initializing...",
+        "running": "Starting...",
+        "cloning": "Cloning repository",
+        "scanning": "Scanning files",
+        "analyzing": "Running analysis",
+        "ai_review": "AI review in progress",
+        "scoring": "Calculating scores",
+        "completed": "Completed",
+        "failed": "Failed",
+        "cancelled": "Cancelled",
+    }
 
     return AuditStatusResponse(
         id=audit.id,
@@ -170,8 +194,8 @@ async def get_audit(
         started_at=audit.started_at,
         completed_at=audit.completed_at,
         error_message=audit.error_message,
-        progress=None,  # TODO: Get from cache
-        current_file=None,
+        progress=progress_map.get(audit.status, 0),
+        current_file=current_file_map.get(audit.status, None),
     )
 
 
@@ -342,17 +366,43 @@ async def audit_events_websocket(
                 )
 
                 if audit:
-                    progress = 0
-                    if audit.status == "running":
-                        progress = 50
-                    elif audit.status == "completed":
-                        progress = 100
+                    # Progress map based on status
+                    progress_map = {
+                        "pending": 0,
+                        "running": 0,
+                        "cloning": 20,
+                        "scanning": 40,
+                        "analyzing": 60,
+                        "ai_review": 80,
+                        "scoring": 90,
+                        "completed": 100,
+                        "failed": 0,
+                        "cancelled": 0,
+                    }
+
+                    # Stage map
+                    stage_map = {
+                        "pending": "initializing",
+                        "running": "processing",
+                        "cloning": "cloning",
+                        "scanning": "scanning",
+                        "analyzing": "analyzing",
+                        "ai_review": "ai_review",
+                        "scoring": "scoring",
+                        "completed": "completed",
+                        "failed": "failed",
+                        "cancelled": "cancelled",
+                    }
+
+                    progress = progress_map.get(audit.status, 0)
+                    stage = stage_map.get(audit.status, "processing")
 
                     await websocket.send_json({
                         "type": "progress",
                         "audit_id": str(audit_id),
                         "status": audit.status,
                         "progress": progress,
+                        "stage": stage,
                         "error_message": audit.error_message,
                         "created_at": audit.created_at.isoformat() if audit.created_at else None,
                         "completed_at": audit.completed_at.isoformat() if audit.completed_at else None,

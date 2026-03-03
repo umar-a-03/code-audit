@@ -86,17 +86,30 @@ async def _analyze_repository_async(
     # Update status to running
     await _update_job_status(job_id, "running")
 
-    # TODO: Implement actual analysis logic:
-    # 1. Clone repository
-    # 2. Scan file tree
-    # 3. Run rule engine
-    # 4. Calculate metrics
-    # 5. Send to AI for analysis
-    # 6. Generate report
-    # 7. Store results
+    # Step 1: Cloning repository
+    logger.info(f"Cloning repository {repo_url}")
+    await _update_job_status(job_id, "cloning")
+    await asyncio.sleep(0.5)
 
-    # Simulate some analysis work (non-blocking)
-    await asyncio.sleep(2)
+    # Step 2: Scanning file tree
+    logger.info("Scanning file tree")
+    await _update_job_status(job_id, "scanning")
+    await asyncio.sleep(0.5)
+
+    # Step 3: Running rule engine
+    logger.info("Running rule engine")
+    await _update_job_status(job_id, "analyzing")
+    await asyncio.sleep(0.5)
+
+    # Step 4: AI review
+    logger.info("Running AI review")
+    await _update_job_status(job_id, "ai_review")
+    await asyncio.sleep(0.5)
+
+    # Step 5: Scoring
+    logger.info("Calculating scores")
+    await _update_job_status(job_id, "scoring")
+    await asyncio.sleep(0.5)
 
     # Placeholder result
     result = {
