@@ -1,12 +1,11 @@
 /**
  * useAuth Hook
- * Custom hook for authentication state and operations using Supabase
+ * Custom hook for authentication state and operations
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import authService from '../services/auth';
-import { supabaseAuth } from '../supabase/client';
 
 export const useAuth = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -14,7 +13,7 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Check authentication status on mount and set up listener
+  // Check authentication status on mount
   useEffect(() => {
     let mounted = true;
 
@@ -22,21 +21,33 @@ export const useAuth = () => {
       setLoading(true);
 
       try {
-        // Check current Supabase session
-        const session = await supabaseAuth.getSession();
+        // Check if we have a stored token
+        if (authService.isAuthenticated()) {
+          // Get user from API to verify token is still valid
+          const userData = await authService.getCurrentUser();
 
-        if (session && mounted) {
-          const userData = await supabaseAuth.getUser();
-          setIsAuthenticated(true);
-          setUser(userData);
+          if (mounted) {
+            if (userData) {
+              setIsAuthenticated(true);
+              setUser(userData);
+            } else {
+              // Token was invalid, clear auth state
+              setIsAuthenticated(false);
+              setUser(null);
+            }
+          }
         } else {
-          setIsAuthenticated(false);
-          setUser(null);
+          if (mounted) {
+            setIsAuthenticated(false);
+            setUser(null);
+          }
         }
       } catch (error) {
         console.error('Auth initialization error:', error);
-        setIsAuthenticated(false);
-        setUser(null);
+        if (mounted) {
+          setIsAuthenticated(false);
+          setUser(null);
+        }
       } finally {
         if (mounted) setLoading(false);
       }
@@ -44,47 +55,37 @@ export const useAuth = () => {
 
     initializeAuth();
 
-    // Set up Supabase auth state listener
-    const { data: { subscription } } = supabaseAuth.onAuthStateChange((event, session) => {
-      if (!mounted) return;
-
-      if (event === 'SIGNED_IN' && session?.user) {
-        setIsAuthenticated(true);
-        setUser(session.user);
-      } else if (event === 'SIGNED_OUT') {
-        setIsAuthenticated(false);
-        setUser(null);
-      }
-    });
-
     return () => {
       mounted = false;
-      subscription?.unsubscribe();
     };
   }, []);
 
   /**
-   * Login with Google via Supabase
+   * Login with email and password
    */
-  const loginWithGoogle = useCallback(async () => {
+  const login = useCallback(async (email, password) => {
     try {
-      await authService.signInWithGoogle();
-    // Supabase will redirect to Google OAuth, then back to /auth/callback
+      const { user: userData } = await authService.login(email, password);
+      setUser(userData);
+      setIsAuthenticated(true);
+      return userData;
     } catch (error) {
-      console.error('Google login error:', error);
+      console.error('Login error:', error);
       throw error;
     }
   }, []);
 
   /**
-   * Login with GitHub via Supabase
+   * Register a new user
    */
-  const loginWithGithub = useCallback(async () => {
+  const register = useCallback(async (email, password, name) => {
     try {
-      await authService.signInWithGithub();
-    // Supabase will redirect to GitHub OAuth, then back to /auth/callback
+      const { user: userData } = await authService.register(email, password, name);
+      setUser(userData);
+      setIsAuthenticated(true);
+      return userData;
     } catch (error) {
-      console.error('GitHub login error:', error);
+      console.error('Register error:', error);
       throw error;
     }
   }, []);
@@ -94,7 +95,7 @@ export const useAuth = () => {
    */
   const logout = useCallback(async () => {
     try {
-      await authService.signOut();
+      await authService.logout();
       // The service will redirect to /login
     } catch (error) {
       console.error('Logout error:', error);
@@ -111,14 +112,31 @@ export const useAuth = () => {
     authService.setUser(userData);
   }, []);
 
+  /**
+   * Refresh user data from API
+   */
+  const refreshUser = useCallback(async () => {
+    try {
+      const userData = await authService.getCurrentUser();
+      if (userData) {
+        setUser(userData);
+      }
+      return userData;
+    } catch (error) {
+      console.error('Refresh user error:', error);
+      return null;
+    }
+  }, []);
+
   return {
     isAuthenticated,
     user,
     loading,
-    loginWithGoogle,
-    loginWithGithub,
+    login,
+    register,
     logout,
     updateUser,
+    refreshUser,
   };
 };
 

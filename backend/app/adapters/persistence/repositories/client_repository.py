@@ -167,3 +167,49 @@ class ClientRepository:
         self._session.add(client)
         await self._session.flush()
         return client
+
+    async def create_with_password(
+        self,
+        email: str,
+        password_hash: str,
+        name: Optional[str] = None,
+    ) -> Client:
+        """Create a new client with password (traditional auth).
+
+        Args:
+            email: Client email.
+            password_hash: Hashed password.
+            name: Optional client name.
+
+        Returns:
+            Client: Created client.
+        """
+        client = Client(
+            email=email,
+            name=name or email.split("@")[0],
+            password_hash=password_hash,
+            is_active=True,
+        )
+        self._session.add(client)
+        await self._session.flush()
+        return client
+
+    async def update_password(
+        self,
+        client_id: UUID,
+        password_hash: str,
+    ) -> Optional[Client]:
+        """Update client password.
+
+        Args:
+            client_id: Client ID.
+            password_hash: New hashed password.
+
+        Returns:
+            Client: Updated client if found, None otherwise.
+        """
+        client = await self.get_by_id(client_id)
+        if client:
+            client.password_hash = password_hash
+            await self._session.flush()
+        return client

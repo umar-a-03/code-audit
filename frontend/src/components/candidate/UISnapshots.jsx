@@ -37,20 +37,19 @@ const UISnapshots = ({ screenshots, hostedUrl }) => {
     );
   }
 
-  if (!isHosted) {
-    return (
-      <div className="glass-panel p-4 flex-1">
-        <h3 className="text-xs font-bold text-primary uppercase mb-4">[ UI_SNAPSHOTS ]</h3>
-        <div className="flex flex-col items-center justify-center py-8 text-center">
-          <span className="material-symbols-outlined text-4xl text-gray-600 mb-2">cloud_off</span>
-          <p className="text-gray-500 font-mono text-xs">NOT HOSTED</p>
-          <p className="text-gray-600 font-mono text-[10px] mt-1">
-            No deployment URL provided
-          </p>
-        </div>
+  // Show not supported state - screenshots not available in current backend
+  return (
+    <div className="glass-panel p-4 flex-1">
+      <h3 className="text-xs font-bold text-primary uppercase mb-4">[ UI_SNAPSHOTS ]</h3>
+      <div className="flex flex-col items-center justify-center py-8 text-center">
+        <span className="material-symbols-outlined text-4xl text-gray-600 mb-2">cloud_off</span>
+        <p className="text-gray-500 font-mono text-xs">NOT AVAILABLE</p>
+        <p className="text-gray-600 font-mono text-[10px] mt-1">
+          UI screenshots are not supported in the current version
+        </p>
       </div>
-    );
-  }
+    </div>
+  );
 
   return (
     <div className="glass-panel p-4 flex-1">

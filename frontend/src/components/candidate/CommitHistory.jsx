@@ -17,9 +17,14 @@ const CommitHistory = ({ githubUrl, submissionId }) => {
   const fetchCommitHistory = async () => {
     try {
       setLoading(true);
-      const data = await api.get(`/submissions/${submissionId}/commits`);
-      console.log('Commit data received:', data); // Debug
-      setCommitData(data);
+      // Backend doesn't have commit history endpoint yet
+      // Set placeholder data
+      setCommitData({
+        commits: [],
+        total_commits: 0,
+        repo_name: 'Repository',
+        activity: { weeks: [] }
+      });
       setError(null);
     } catch (err) {
       console.error('Failed to fetch commit history:', err);

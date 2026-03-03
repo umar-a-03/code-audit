@@ -1,33 +1,25 @@
 """FastAPI dependencies for authentication."""
 
 from typing import Annotated
+from uuid import UUID
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
-from supabase import create_client, Client as SupabaseClient
 
-from app.config import get_settings
+from app.core.security import decode_access_token
 from app.adapters.persistence.models.client import Client as ClientModel
 from app.adapters.persistence.repositories import ClientRepository
 from app.dependencies import DBSessionDep
-
-settings = get_settings()
-
-# Supabase client for token verification
-supabase = create_client(
-    settings.SUPABASE_URL or "",
-    settings.SUPABASE_SERVICE_ROLE_KEY or "",
-)
 
 
 async def get_current_user(
     session: DBSessionDep,
     credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer()),
 ) -> ClientModel:
-    """Get the current authenticated user from Supabase JWT token.
+    """Get the current authenticated user from JWT token.
 
-    Verifies the JWT token from Supabase and fetches/creates the user info
-    in the database.
+    Verifies the JWT token and fetches the user from the database.
 
     Args:
         credentials: HTTP Bearer credentials from request.
@@ -37,53 +29,61 @@ async def get_current_user(
         ClientModel: Authenticated client from database.
 
     Raises:
-        HTTPException: 401 if token is invalid.
+        HTTPException: 401 if token is invalid or user not found.
     """
     if not credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Decode and validate JWT token
+    payload = decode_access_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Get user ID from token subject
+    user_id_str = payload.get("sub")
+    if not user_id_str:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
     try:
-        # Verify JWT and get user from Supabase
-        user_response = await supabase.auth.get_user(
-            jwt=credentials.credentials,
-        )
-
-        if not user_response.data.user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token",
-            )
-
-        # Get user data from Supabase
-        user = user_response.data.user
-        email = user.email
-        if not email:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Email not found in user profile",
-            )
-
-        # Get or create client record in database
-        client_repo = ClientRepository(session)
-        client = await client_repo.get_or_create_by_oauth(
-            oauth_id=user.id,
-            email=email,
-            name=user.user_metadata.get("name", email.split("@")[0]),
-            oauth_provider="google",
-        )
-
-        return client
-
-    except HTTPException:
-        raise
-    except Exception as e:
+        user_id = UUID(user_id_str)
+    except ValueError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Authentication failed: {str(e)}",
+            detail="Invalid user ID in token",
+            headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # Fetch user from database
+    client_repo = ClientRepository(session)
+    client = await client_repo.get_by_id(user_id)
+
+    if not client:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not client.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Account is disabled",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return client
 
 
 # Dependency injection alias

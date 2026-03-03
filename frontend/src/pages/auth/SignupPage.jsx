@@ -1,20 +1,22 @@
 /**
- * LoginPage Component
- * Email/password login page
+ * SignupPage Component
+ * Email/password registration page
  */
 
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
-const LoginPage = () => {
-  const { login } = useAuth();
+const SignupPage = () => {
+  const { register } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [formData, setFormData] = useState({
+    name: '',
     email: '',
     password: '',
+    confirmPassword: '',
   });
 
   const handleChange = (e) => {
@@ -27,18 +29,47 @@ const LoginPage = () => {
     if (error) setError(null);
   };
 
+  const validateForm = () => {
+    if (!formData.email.trim()) {
+      setError('Email is required');
+      return false;
+    }
+    if (!formData.password) {
+      setError('Password is required');
+      return false;
+    }
+    if (formData.password.length < 8) {
+      setError('Password must be at least 8 characters long');
+      return false;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      return false;
+    }
+    return true;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      await login(formData.email, formData.password);
-      // Redirect to dashboard on successful login
+      await register(
+        formData.email,
+        formData.password,
+        formData.name.trim() || null
+      );
+      // Redirect to dashboard on successful registration
       navigate('/dashboard');
     } catch (err) {
-      console.error('Login failed:', err);
-      setError(err.detail || err.message || 'Failed to login. Please check your credentials.');
+      console.error('Registration failed:', err);
+      setError(err.detail || err.message || 'Failed to create account. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -69,7 +100,7 @@ const LoginPage = () => {
           </p>
         </div>
 
-        {/* Login Card */}
+        {/* Signup Card */}
         <div className="border border-white/10 bg-black/50 backdrop-blur-sm p-8 relative">
           {/* Corner decorations */}
           <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-primary" />
@@ -78,7 +109,7 @@ const LoginPage = () => {
           <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-primary" />
 
           <h2 className="text-xl font-mono text-center mb-8">
-            <span className="text-primary">&gt;&gt;</span> SIGN IN
+            <span className="text-primary">&gt;&gt;</span> CREATE ACCOUNT
           </h2>
 
           {/* Error Display */}
@@ -89,8 +120,25 @@ const LoginPage = () => {
             </div>
           )}
 
-          {/* Login Form */}
-          <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Signup Form */}
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Name Input */}
+            <div>
+              <label htmlFor="name" className="block text-sm font-mono text-gray-400 mb-2">
+                Name <span className="text-gray-600">(optional)</span>
+              </label>
+              <input
+                type="text"
+                id="name"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                disabled={loading}
+                className="w-full px-4 py-3 bg-black/50 border border-white/20 text-white font-mono text-sm focus:outline-none focus:border-primary focus:shadow-neon transition-all duration-200 disabled:opacity-50"
+                placeholder="Enter your name"
+              />
+            </div>
+
             {/* Email Input */}
             <div>
               <label htmlFor="email" className="block text-sm font-mono text-gray-400 mb-2">
@@ -123,7 +171,25 @@ const LoginPage = () => {
                 required
                 disabled={loading}
                 className="w-full px-4 py-3 bg-black/50 border border-white/20 text-white font-mono text-sm focus:outline-none focus:border-primary focus:shadow-neon transition-all duration-200 disabled:opacity-50"
-                placeholder="Enter your password"
+                placeholder="Create a password (min 8 characters)"
+              />
+            </div>
+
+            {/* Confirm Password Input */}
+            <div>
+              <label htmlFor="confirmPassword" className="block text-sm font-mono text-gray-400 mb-2">
+                Confirm Password
+              </label>
+              <input
+                type="password"
+                id="confirmPassword"
+                name="confirmPassword"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                required
+                disabled={loading}
+                className="w-full px-4 py-3 bg-black/50 border border-white/20 text-white font-mono text-sm focus:outline-none focus:border-primary focus:shadow-neon transition-all duration-200 disabled:opacity-50"
+                placeholder="Confirm your password"
               />
             </div>
 
@@ -136,28 +202,28 @@ const LoginPage = () => {
               {loading ? (
                 <>
                   <span className="material-symbols-outlined animate-spin">progress_activity</span>
-                  <span className="font-mono text-sm">Signing in...</span>
+                  <span className="font-mono text-sm">Creating account...</span>
                 </>
               ) : (
                 <>
-                  <span className="material-symbols-outlined">login</span>
+                  <span className="material-symbols-outlined">person_add</span>
                   <span className="font-mono text-sm group-hover:text-primary transition-colors">
-                    Sign In
+                    Create Account
                   </span>
                 </>
               )}
             </button>
           </form>
 
-          {/* Sign up link */}
+          {/* Login link */}
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-400 font-mono">
-              Don't have an account?{' '}
+              Already have an account?{' '}
               <Link
-                to="/signup"
+                to="/login"
                 className="text-primary hover:text-primary/80 transition-colors"
               >
-                Sign up
+                Sign in
               </Link>
             </p>
           </div>
@@ -165,7 +231,7 @@ const LoginPage = () => {
           {/* Info text */}
           <div className="mt-6 pt-6 border-t border-white/10 text-center">
             <p className="text-xs text-gray-500 font-mono">
-              By continuing, you agree to our Terms of Service and Privacy Policy
+              By creating an account, you agree to our Terms of Service and Privacy Policy
             </p>
           </div>
         </div>
@@ -181,4 +247,4 @@ const LoginPage = () => {
   );
 };
 
-export default LoginPage;
+export default SignupPage;

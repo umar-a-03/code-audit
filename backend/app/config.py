@@ -1,7 +1,6 @@
 """Application configuration using Pydantic Settings."""
 
 from functools import lru_cache
-from typing import Any
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -64,22 +63,12 @@ class Settings(BaseSettings):
 
     # CORS
     CORS_ORIGINS: list[str] = Field(
-        default=["http://localhost:5164"],
+        default=["http://localhost:5173", "http://localhost:5174", "http://localhost:5172", "http://localhost:3000", "http://localhost:8080"],
         description="Allowed CORS origins",
     )
     CORS_ALLOW_CREDENTIALS: bool = True
-    CORS_ALLOW_METHODS: list[str] = ["*"]
-    CORS_ALLOW_HEADERS: list[str] = ["*"]
-
-    # OAuth - GitHub
-    GITHUB_CLIENT_ID: str | None = None
-    GITHUB_CLIENT_SECRET: SecretStr | None = None
-    GITHUB_REDIRECT_URI: str = "http://localhost:5164/auth/github/callback"
-
-    # OAuth - Google
-    GOOGLE_CLIENT_ID: str | None = None
-    GOOGLE_CLIENT_SECRET: SecretStr | None = None
-    GOOGLE_REDIRECT_URI: str = "http://localhost:5164/auth/google/callback"
+    CORS_ALLOW_METHODS: list[str] = Field(default=["*"])
+    CORS_ALLOW_HEADERS: list[str] = Field(default=["*"])
 
     # File Storage
     STORAGE_TYPE: str = "local"  # local, s3, gcs
@@ -142,17 +131,8 @@ class Settings(BaseSettings):
     LOG_FILE: str | None = None
 
     # Feature Flags
-    ENABLE_GOOGLE_AUTH: bool = True
-    ENABLE_GITHUB_AUTH: bool = False  # Disabled, using Supabase instead
     ENABLE_BATCH_ANALYSIS: bool = True
     ENABLE_SCHEDULING: bool = False
-
-    # ===========================================
-    # Supabase Configuration (Google OAuth via Supabase)
-    # ===========================================
-    SUPABASE_URL: str | None = None
-    SUPABASE_ANON_KEY: str | None = None
-    SUPABASE_SERVICE_ROLE_KEY: str | None = None
 
 
 @lru_cache()

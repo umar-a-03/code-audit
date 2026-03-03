@@ -1,5 +1,6 @@
 // Scoring Service
 // API calls for submission scoring with WebSocket support
+// Maps to backend's audit endpoints
 
 import api from './api';
 
@@ -16,22 +17,22 @@ class WebSocketManager {
   /**
    * Get WebSocket URL from API base URL
    */
-  getWebSocketUrl() {
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  getWebSocketUrl(auditId) {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080';
     const wsProtocol = apiUrl.startsWith('https') ? 'wss' : 'ws';
     const wsHost = apiUrl.replace(/^https?:\/\//, '');
-    return `${wsProtocol}://${wsHost}/ws`;
+    return `${wsProtocol}://${wsHost}/api/v1/audits/${auditId}/events`;
   }
 
   /**
    * Connect to WebSocket server
    */
-  connect() {
+  connect(auditId) {
     if (this.ws?.readyState === WebSocket.OPEN) {
       return;
     }
 
-    const wsUrl = this.getWebSocketUrl();
+    const wsUrl = this.getWebSocketUrl(auditId);
     console.log('[WebSocket] Connecting to', wsUrl);
 
     this.ws = new WebSocket(wsUrl);
@@ -39,40 +40,17 @@ class WebSocketManager {
     this.ws.onopen = () => {
       console.log('[WebSocket] Connected');
       this.reconnectAttempts = 0;
-
-      // Re-subscribe to all active subscriptions
-      this.subscribers.forEach((_callbacks, submissionId) => {
-        this.subscribe(submissionId);
-      });
     };
 
     this.ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log('[WebSocket] Received:', data.type, data);
+        console.log('[WebSocket] Received:', data);
 
-        // Handle progress updates
-        if (data.type === 'progress' && data.submission_id) {
-          const callbacks = this.subscribers.get(data.submission_id);
-          if (callbacks) {
-            callbacks.forEach((cb) => cb(data));
-          }
-        }
-
-        // Handle completion
-        if (data.type === 'progress' && data.stage === 'completed') {
-          const callbacks = this.subscribers.get(data.submission_id);
-          if (callbacks) {
-            callbacks.forEach((cb) => cb({ ...data, done: true }));
-          }
-        }
-
-        // Handle errors
-        if (data.type === 'progress' && data.stage === 'failed') {
-          const callbacks = this.subscribers.get(data.submission_id);
-          if (callbacks) {
-            callbacks.forEach((cb) => cb({ ...data, error: true }));
-          }
+        // Notify subscribers
+        const callbacks = this.subscribers.get(auditId);
+        if (callbacks) {
+          callbacks.forEach((cb) => cb(data));
         }
       } catch (err) {
         console.error('[WebSocket] Parse error:', err);
@@ -81,7 +59,6 @@ class WebSocketManager {
 
     this.ws.onclose = () => {
       console.log('[WebSocket] Disconnected');
-      this.attemptReconnect();
     };
 
     this.ws.onerror = (error) => {
@@ -90,84 +67,27 @@ class WebSocketManager {
   }
 
   /**
-   * Attempt to reconnect
+   * Subscribe to audit progress updates
    */
-  attemptReconnect() {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.log('[WebSocket] Max reconnect attempts reached');
-      return;
+  subscribeToAuditProgress(auditId, callback) {
+    this.connect(auditId);
+
+    if (!this.subscribers.has(auditId)) {
+      this.subscribers.set(auditId, new Set());
     }
+    this.subscribers.get(auditId).add(callback);
 
-    this.reconnectAttempts++;
-    const delay = this.reconnectDelay * this.reconnectAttempts;
-    console.log(`[WebSocket] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
-
-    setTimeout(() => {
-      this.connect();
-    }, delay);
-  }
-
-  /**
-   * Subscribe to submission progress updates
-   * @param {string} submissionId - Submission ID to subscribe to
-   * @param {function} callback - Callback function for progress updates
-   * @returns {function} Unsubscribe function
-   */
-  subscribeToProgress(submissionId, callback) {
-    // Ensure connection
-    this.connect();
-
-    // Add callback to subscribers
-    if (!this.subscribers.has(submissionId)) {
-      this.subscribers.set(submissionId, new Set());
-    }
-    this.subscribers.get(submissionId).add(callback);
-
-    // Subscribe via WebSocket
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.subscribe(submissionId);
-    }
-
-    // Return unsubscribe function
     return () => {
-      const callbacks = this.subscribers.get(submissionId);
+      const callbacks = this.subscribers.get(auditId);
       if (callbacks) {
         callbacks.delete(callback);
         if (callbacks.size === 0) {
-          this.subscribers.delete(submissionId);
-          this.unsubscribe(submissionId);
+          this.subscribers.delete(auditId);
         }
       }
     };
   }
 
-  /**
-   * Send subscribe message
-   */
-  subscribe(submissionId) {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({
-        action: 'subscribe',
-        submission_id: submissionId,
-      }));
-    }
-  }
-
-  /**
-   * Send unsubscribe message
-   */
-  unsubscribe(submissionId) {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({
-        action: 'unsubscribe',
-        submission_id: submissionId,
-      }));
-    }
-  }
-
-  /**
-   * Disconnect WebSocket
-   */
   disconnect() {
     if (this.ws) {
       this.ws.close();
@@ -181,125 +101,115 @@ class WebSocketManager {
 const wsManager = new WebSocketManager();
 
 /**
- * Submit a GitHub URL for scoring
+ * Submit a GitHub URL for scoring (creates audit)
  * @param {Object} data - Submission data
- * @param {string} data.candidate_name - Candidate name
- * @param {string} data.candidate_email - Candidate email
  * @param {string} data.github_url - GitHub repository URL
- * @param {string} [data.hosted_url] - Optional hosted URL
- * @param {string} [data.video_url] - Optional video demo URL
- * @returns {Promise<Object>} Submission response with ID
+ * @param {string} [data.branch] - Git branch
+ * @param {string} [data.analysis_type] - Analysis type
+ * @param {Object} [data.options] - Additional options
+ * @returns {Promise<Object>} Audit response with ID
  */
 export const submitForScoring = async (data) => {
-  return api.post('/submissions', {
-    candidate_name: data.candidate_name,
-    candidate_email: data.candidate_email,
-    github_url: data.github_url,
-    hosted_url: data.hosted_url || null,
-    video_url: data.video_url || null,
-    rules_text: data.rules_text || null,
-    project_structure_text: data.project_structure_text || null,
+  return api.post('/audits', {
+    repo_url: data.github_url,
+    branch: data.branch || 'main',
+    analysis_type: data.analysis_type || 'full',
+    options: {
+      rules_text: data.rules_text || null,
+      project_structure_text: data.project_structure_text || null,
+    },
   });
 };
 
 /**
- * Get submission status
- * @param {string} submissionId - Submission ID
- * @returns {Promise<Object>} Submission details
+ * Get audit status
+ * @param {string} submissionId - Audit ID
+ * @returns {Promise<Object>} Audit details
  */
 export const getSubmissionStatus = async (submissionId) => {
-  return api.get(`/submissions/${submissionId}`);
+  return api.get(`/audits/${submissionId}`);
 };
 
 /**
- * Get full score report
- * @param {string} submissionId - Submission ID
- * @returns {Promise<Object>} Complete score report
+ * Get full audit report
+ * @param {string} submissionId - Audit ID
+ * @returns {Promise<Object>} Complete audit report
  */
 export const getScoreReport = async (submissionId) => {
-  return api.get(`/submissions/${submissionId}/report`);
+  return api.get(`/audits/${submissionId}`);
 };
 
 /**
- * List all submissions
+ * List all audits (submissions)
  * @param {Object} params - Query parameters
  * @param {number} [params.skip=0] - Number to skip
  * @param {number} [params.limit=20] - Max results
  * @param {string} [params.status] - Filter by status
- * @returns {Promise<Array>} List of submissions
+ * @returns {Promise<Array>} List of audits
  */
 export const listSubmissions = async (params = {}) => {
   const queryParams = new URLSearchParams();
   if (params.skip) queryParams.append('skip', params.skip);
   if (params.limit) queryParams.append('limit', params.limit);
-  if (params.status) queryParams.append('status_filter', params.status);
+  if (params.status) queryParams.append('status', params.status);
 
-  return api.get(`/submissions?${queryParams.toString()}`);
+  return api.get(`/audits?${queryParams.toString()}`);
 };
 
 /**
- * Trigger scoring for a submission
- * @param {string} submissionId - Submission ID
- * @returns {Promise<Object>} Updated submission
+ * Trigger scoring for an audit (not supported)
+ * @param {string} submissionId - Audit ID
+ * @returns {Promise<Object>} Updated audit
+ * @deprecated Audits start immediately on creation
  */
 export const triggerScoring = async (submissionId) => {
-  return api.post(`/submissions/${submissionId}/trigger`);
+  console.warn('triggerScoring is deprecated - audits start immediately');
+  return getSubmissionStatus(submissionId);
 };
 
 /**
  * Get dashboard statistics
- * @returns {Promise<Object>} Dashboard stats with counts and recent submissions
+ * @returns {Promise<Object>} Dashboard stats with counts and recent audits
  */
 export const getDashboardStats = async () => {
-  return api.get('/submissions/stats');
+  return api.get('/dashboard/stats');
 };
 
 /**
- * Subscribe to real-time progress updates for a submission
- * @param {string} submissionId - Submission ID
+ * Subscribe to real-time progress updates for an audit
+ * @param {string} submissionId - Audit ID
  * @param {function} onProgress - Callback for progress updates
  * @returns {function} Unsubscribe function
- *
- * @example
- * const unsubscribe = subscribeToProgress('sub_123', (data) => {
- *   console.log(`${data.progress}% - ${data.message}`);
- *   if (data.done) {
- *     console.log('Completed!', data.data);
- *   }
- * });
- *
- * // Later: unsubscribe();
  */
 export const subscribeToProgress = (submissionId, onProgress) => {
-  return wsManager.subscribeToProgress(submissionId, onProgress);
+  return wsManager.subscribeToAuditProgress(submissionId, onProgress);
 };
 
 /**
- * Poll submission status until complete (fallback if WebSocket unavailable)
- * @param {string} submissionId - Submission ID
+ * Poll audit status until complete (fallback if WebSocket unavailable)
+ * @param {string} submissionId - Audit ID
  * @param {function} onProgress - Progress callback
  * @param {number} intervalMs - Polling interval in ms
- * @returns {Promise<Object>} Final submission result
+ * @returns {Promise<Object>} Final audit result
  */
 export const pollSubmissionStatus = async (submissionId, onProgress, intervalMs = 2000) => {
   return new Promise((resolve, reject) => {
     const poll = async () => {
       try {
         const response = await getSubmissionStatus(submissionId);
-        const submission = response.data;
+        const audit = response.data || response;
 
         onProgress?.({
           submission_id: submissionId,
-          stage: submission.status,
-          progress: submission.status === 'completed' ? 100 : 50,
-          message: `Status: ${submission.status}`,
+          stage: audit.status,
+          progress: audit.status === 'completed' ? 100 : 50,
+          message: `Status: ${audit.status}`,
         });
 
-        if (submission.status === 'completed') {
-          const report = await getScoreReport(submissionId);
-          resolve(report.data);
-        } else if (submission.status === 'failed') {
-          reject(new Error(submission.error_message || 'Scoring failed'));
+        if (audit.status === 'completed') {
+          resolve(audit);
+        } else if (audit.status === 'failed') {
+          reject(new Error(audit.error_message || 'Audit failed'));
         } else {
           setTimeout(poll, intervalMs);
         }
@@ -313,50 +223,49 @@ export const pollSubmissionStatus = async (submissionId, onProgress, intervalMs 
 };
 
 // ===========================================
-// Bulk Upload Functions
+// Bulk Upload Functions (not supported by backend)
 // ===========================================
 
 /**
  * Download bulk submission Excel template
  * @returns {Promise<Blob>} Excel template file
+ * @deprecated Not supported by backend
  */
 export const downloadBulkTemplate = async () => {
-  const response = await api.get('/bulk/template', {
-    responseType: 'blob'
-  });
-  return response;
+  console.warn('Bulk template download is not supported');
+  throw new Error('Bulk template download is not supported');
 };
 
 /**
  * Upload bulk submissions Excel file
  * @param {File} file - Excel file with submissions
  * @returns {Promise<Object>} Upload result with batch_id
+ * @deprecated Not supported by backend - use batch audits instead
  */
 export const uploadBulkSubmissions = async (file) => {
-  const formData = new FormData();
-  formData.append('file', file);
-
-  const response = await api.post('/bulk/upload', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data'
-    }
-  });
-  return response;
+  console.warn('Bulk upload is not supported - use batch audits instead');
+  throw new Error('Bulk upload is not supported - use batch audits instead');
 };
 
 /**
  * Get bulk upload status
  * @param {string} batchId - Batch ID from upload
  * @returns {Promise<Object>} Status with counts
+ * @deprecated Not supported by backend
  */
 export const getBulkStatus = async (batchId) => {
-  return api.get(`/bulk/status/${batchId}`);
+  console.warn('Bulk status is not supported');
+  throw new Error('Bulk status is not supported');
 };
 
 /**
  * Get Redis Queue statistics
  * @returns {Promise<Object>} Queue stats
+ * @deprecated Not supported by backend
  */
 export const getQueueStats = async () => {
-  return api.get('/bulk/queue/stats');
+  console.warn('Queue stats is not supported');
+  throw new Error('Queue stats is not supported');
 };
+
+export default api;

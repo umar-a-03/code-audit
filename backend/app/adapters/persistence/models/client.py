@@ -33,8 +33,9 @@ class Client(Base, TimestampMixin):
     # Client information
     name: Mapped[str | None] = mapped_column(String(255))
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
-    oauth_provider: Mapped[str | None] = mapped_column(String(50))  # github, google
-    oauth_id: Mapped[str | None] = mapped_column(String(255))  # Provider's user ID
+    password_hash: Mapped[str | None] = mapped_column(String(255))  # For traditional auth
+    oauth_provider: Mapped[str | None] = mapped_column(String(50))  # github, google (deprecated)
+    oauth_id: Mapped[str | None] = mapped_column(String(255))  # Provider's user ID (deprecated)
 
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -44,6 +45,11 @@ class Client(Base, TimestampMixin):
     settings: Mapped[dict] = mapped_column(JSON, default=dict)
 
     # Relationships
+    users: Mapped[list["User"]] = relationship(
+        "User",
+        back_populates="client",
+        cascade="all, delete-orphan",
+    )
     projects: Mapped[list["Project"]] = relationship(
         "Project",
         back_populates="client",

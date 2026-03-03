@@ -3,7 +3,7 @@
 from uuid import UUID
 from datetime import datetime
 from typing import Optional, Literal, Any
-from pydantic import BaseModel, Field, EmailStr, HttpUrl, field_validator
+from pydantic import BaseModel, Field, EmailStr, field_validator
 
 
 class AuditBase(BaseModel):

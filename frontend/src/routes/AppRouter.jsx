@@ -5,7 +5,8 @@ import Settings from '../pages/settings/Settings';
 import Batch from '../pages/batch/Batch';
 import BatchResults from '../pages/batch/BatchResults';
 import ProtectedRoute from '../components/auth/ProtectedRoute';
-import { LoginPage, OAuthCallback } from '../pages/auth';
+import { LoginPage } from '../pages/auth';
+import SignupPage from '../pages/auth/SignupPage';
 
 // TODO: Create these pages
 // import Projects from '../pages/projects/Projects';
@@ -25,8 +26,8 @@ export const router = createBrowserRouter([
     element: <LoginPage />,
   },
   {
-    path: '/auth/callback',
-    element: <OAuthCallback />,
+    path: '/signup',
+    element: <SignupPage />,
   },
   {
     path: '/',

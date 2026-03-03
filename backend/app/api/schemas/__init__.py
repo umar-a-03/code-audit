@@ -29,6 +29,13 @@ from .report import (
     ReportResponse,
     ReportListResponse,
 )
+from .auth import (
+    RegisterRequest,
+    LoginRequest,
+    UserResponse,
+    AuthResponse,
+    AuthErrorResponse,
+)
 
 __all__ = [
     "CreateAuditRequest",
@@ -47,4 +54,9 @@ __all__ = [
     "RecentAuditItem",
     "ReportResponse",
     "ReportListResponse",
+    "RegisterRequest",
+    "LoginRequest",
+    "UserResponse",
+    "AuthResponse",
+    "AuthErrorResponse",
 ]

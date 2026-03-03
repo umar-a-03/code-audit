@@ -47,11 +47,15 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     async with async_session_maker() as session:
         try:
             yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
         finally:
             await session.close()
 
 
-async def get_db_session_context() -> AsyncContextManager[AsyncSession]:
+def get_db_session_context() -> AsyncContextManager[AsyncSession]:
     """Get database session as a context manager.
 
     Returns:

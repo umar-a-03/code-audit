@@ -1,10 +1,10 @@
 // API Service Layer
-// Axios instance with Supabase authentication
+// Axios instance with JWT authentication
 
 import axios from 'axios';
-import { supabase } from '../supabase/client';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+const TOKEN_KEY = 'access_token';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -13,20 +13,15 @@ const api = axios.create({
   },
 });
 
-// Request interceptor - Add Supabase auth token
+// Request interceptor - Add JWT auth token
 api.interceptors.request.use(
-  async (config) => {
-    try {
-      // Get Supabase session
-      const { data: { session } } = await supabase.auth.getSession();
+  (config) => {
+    // Get token from localStorage
+    const token = localStorage.getItem(TOKEN_KEY);
 
-      if (session?.access_token) {
-        // Add Supabase access token as Bearer token
-        config.headers.Authorization = `Bearer ${session.access_token}`;
-      }
-    } catch (error) {
-      // Session check failed, continue without auth
-      console.warn('Failed to get Supabase session:', error);
+    if (token) {
+      // Add token as Bearer
+      config.headers.Authorization = `Bearer ${token}`;
     }
 
     return config;
@@ -41,7 +36,9 @@ api.interceptors.response.use(
   (response) => response.data,
   async (error) => {
     if (error.response?.status === 401) {
-      // Handle unauthorized - redirect to login
+      // Clear auth data and redirect to login
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem('user');
       window.location.href = '/login';
     }
     return Promise.reject(error.response?.data || error);

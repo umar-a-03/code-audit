@@ -1,53 +1,66 @@
 /**
- * Authentication service using Supabase
- * Handles Google OAuth authentication via Supabase
+ * Authentication service for traditional email/password authentication
+ * Handles login, register, and token management
  */
 
-import { supabase, supabaseAuth } from '../supabase/client';
+import api from './api';
 
+const TOKEN_KEY = 'access_token';
 const USER_KEY = 'user';
 
 export const authService = {
   /**
-   * Sign in with Google OAuth via Supabase
+   * Register a new user
+   * @param {string} email - User email
+   * @param {string} password - User password
+   * @param {string} [name] - Optional user name
+   * @returns {Promise<{user: object, token: string}>}
    */
-  signInWithGoogle: async () => {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        },
-      },
-    });
-    if (error) throw error;
-    return data;
+  register: async (email, password, name = null) => {
+    const payload = { email, password };
+    if (name) payload.name = name;
+
+    const response = await api.post('/auth/register', payload);
+    const { access_token, user } = response;
+
+    // Store token and user
+    localStorage.setItem(TOKEN_KEY, access_token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+
+    return { user, token: access_token };
   },
 
   /**
-   * Sign in with GitHub OAuth via Supabase
+   * Login with email and password
+   * @param {string} email - User email
+   * @param {string} password - User password
+   * @returns {Promise<{user: object, token: string}>}
    */
-  signInWithGithub: async () => {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'github',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-    if (error) throw error;
-    return data;
+  login: async (email, password) => {
+    const response = await api.post('/auth/login', { email, password });
+    const { access_token, user } = response;
+
+    // Store token and user
+    localStorage.setItem(TOKEN_KEY, access_token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+
+    return { user, token: access_token };
   },
 
   /**
-   * Sign out user
+   * Logout user
    */
-  signOut: async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+  logout: async () => {
+    try {
+      // Call logout endpoint (optional, for server-side cleanup)
+      await api.post('/auth/logout');
+    } catch (error) {
+      // Ignore logout API errors
+      console.warn('Logout API call failed:', error);
+    }
 
-    // Clear local user data
+    // Clear local storage
+    localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
 
     // Redirect to login page
@@ -55,23 +68,51 @@ export const authService = {
   },
 
   /**
-   * Get current user from Supabase
+   * Get current user from API
+   * @returns {Promise<object|null>}
    */
-  getUser: async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    return user;
+  getCurrentUser: async () => {
+    try {
+      const user = await api.get('/auth/me');
+      // Update stored user data
+      localStorage.setItem(USER_KEY, JSON.stringify(user));
+      return user;
+    } catch (error) {
+      // Token might be expired or invalid
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+      return null;
+    }
   },
 
   /**
-   * Get current session from Supabase
+   * Get stored token
+   * @returns {string|null}
    */
-  getSession: async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    return session;
+  getToken: () => {
+    return localStorage.getItem(TOKEN_KEY);
   },
 
   /**
-   * Set user in localStorage (for quick access)
+   * Get stored user data
+   * @returns {object|null}
+   */
+  getUser: () => {
+    const userStr = localStorage.getItem(USER_KEY);
+    return userStr ? JSON.parse(userStr) : null;
+  },
+
+  /**
+   * Check if user is authenticated (has valid token)
+   * @returns {boolean}
+   */
+  isAuthenticated: () => {
+    return !!localStorage.getItem(TOKEN_KEY);
+  },
+
+  /**
+   * Update stored user data
+   * @param {object} user - User data to store
    */
   setUser: (user) => {
     if (user) {
@@ -80,66 +121,11 @@ export const authService = {
   },
 
   /**
-   * Clear user from localStorage
+   * Clear all auth data
    */
-  clearUser: () => {
+  clearAuth: () => {
+    localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
-  },
-
-  /**
-   * Check if user is authenticated
-   * Checks both Supabase session and localStorage
-   */
-  isAuthenticated: async () => {
-    try {
-      const session = await supabase.auth.getSession();
-      return !!session?.session;
-    } catch {
-      return false;
-    }
-  },
-
-  /**
-   * Initialize auth state listener
-   * Calls the callback when auth state changes
-   */
-  onAuthStateChange: (callback) => {
-    return supabase.auth.onAuthStateChange((event, session) => {
-      // Update localStorage when session changes
-      if (event === 'SIGNED_IN' && session?.user) {
-        authService.setUser(session.user);
-      } else if (event === 'SIGNED_OUT') {
-        authService.clearUser();
-      }
-      callback(event, session);
-    });
-  },
-
-  /**
-   * Legacy method for compatibility - delegates to getSession
-   */
-  getToken: async () => {
-    const session = await supabaseAuth.getSession();
-    return session?.session?.access_token || null;
-  },
-
-  /**
-   * Legacy method - get user from both Supabase and localStorage
-   */
-  getUserData: async () => {
-    try {
-      // First try Supabase
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) return user;
-
-      // Fallback to localStorage
-      const userStr = localStorage.getItem(USER_KEY);
-      return userStr ? JSON.parse(userStr) : null;
-    } catch {
-      // Fallback to localStorage only
-      const userStr = localStorage.getItem(USER_KEY);
-      return userStr ? JSON.parse(userStr) : null;
-    }
   },
 };
 

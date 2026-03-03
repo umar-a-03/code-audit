@@ -17,8 +17,31 @@ const CommitAnalysis = ({ githubUrl, submissionId }) => {
   const fetchAnalysis = async () => {
     try {
       setLoading(true);
-      const data = await api.get(`/submissions/${submissionId}/commit-analysis`);
-      setAnalysis(data);
+      // Backend doesn't have commit analysis endpoint yet
+      // Set placeholder data
+      setAnalysis({
+        ai_risk_score: 0,
+        total_commits: 0,
+        commit_patterns: {
+          ai_pattern_matches: 0,
+          short_messages: 0,
+          avg_message_length: 0,
+          common_patterns: {}
+        },
+        timeline_analysis: {
+          first_commit: null,
+          last_commit: null,
+          total_days: 0,
+          commits_per_day: 0,
+          bulk_commit_sessions: 0
+        },
+        author_analysis: {
+          single_author: true,
+          author_commits: {}
+        },
+        findings: [],
+        recommendations: []
+      });
       setError(null);
     } catch (err) {
       console.error('Failed to fetch commit analysis:', err);
