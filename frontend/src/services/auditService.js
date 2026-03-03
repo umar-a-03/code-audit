@@ -407,4 +407,44 @@ export const getScoreReport = getReport;
  */
 export const subscribeToProgress = subscribeToAuditProgress;
 
+/**
+ * @deprecated Use createAudit instead
+ * Trigger scoring (legacy name)
+ */
+export const triggerScoring = submitForScoring;
+
+/**
+ * @deprecated Use pollAuditStatus instead
+ * Poll submission status (legacy name)
+ */
+export const pollSubmissionStatus = pollAuditStatus;
+
+/**
+ * @deprecated Use downloadBulkTemplate if available
+ * Download bulk template (placeholder)
+ */
+export const downloadBulkTemplate = async () => {
+  throw new Error('downloadBulkTemplate not implemented');
+};
+
+/**
+ * @deprecated Use uploadBulkSubmissions if available
+ * Upload bulk submissions (placeholder)
+ */
+export const uploadBulkSubmissions = async () => {
+  throw new Error('uploadBulkSubmissions not implemented');
+};
+
+/**
+ * @deprecated Use getBatchStatus instead
+ * Get bulk status (legacy name)
+ */
+export const getBulkStatus = getBatchStatus;
+
+/**
+ * @deprecated Use getDashboardStats for queue stats
+ * Get queue stats (placeholder)
+ */
+export const getQueueStats = getDashboardStats;
+
 export default api;

@@ -1,7 +1,9 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import { Header, Sidebar } from '../components/layout';
+import { useAuth } from '../hooks/useAuth';
 
-const Layout = ({ user }) => {
+const Layout = () => {
+  const { user } = useAuth();
   const location = useLocation();
 
   // Generate breadcrumb from path
@@ -9,7 +11,6 @@ const Layout = ({ user }) => {
     const pathParts = location.pathname.split('/').filter(Boolean);
     if (pathParts.length === 0) {
       return [
-        { label: 'root', active: false },
         { label: 'dashboard', active: false },
         { label: 'overview', active: true },
       ];
@@ -31,7 +32,7 @@ const Layout = ({ user }) => {
       <div className="fixed inset-0 z-0 pointer-events-none opacity-[0.1] grid-bg" />
 
       {/* Sidebar */}
-      <Sidebar user={user} />
+      <Sidebar />
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden relative">

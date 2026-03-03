@@ -325,6 +325,19 @@ class BatchService:
         repo = BatchJobRepository(session)
         await repo.update_progress(batch_id, completed, failed)
 
+    async def delete(self, batch_id: UUID) -> bool:
+        """Delete a batch job.
+
+        Args:
+            batch_id: Batch job ID.
+
+        Returns:
+            bool: True if deleted, False if not found.
+        """
+        session = await self._get_session()
+        repo = BatchJobRepository(session)
+        return await repo.delete(batch_id)
+
 
 class ProjectService:
     """Service for project operations."""

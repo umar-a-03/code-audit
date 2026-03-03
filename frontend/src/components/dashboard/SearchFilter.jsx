@@ -25,13 +25,13 @@ const SearchFilter = ({ onSearch, onFilterChange }) => {
       <div className="flex flex-col lg:flex-row gap-4 p-4 items-center">
         {/* Search Input */}
         <div className="flex-1 w-full bg-black border-b border-white/20 flex items-center px-2 py-2 focus-within:border-primary focus-within:shadow-[0_4px_10px_-4px_rgba(0,255,255,0.5)] transition-all">
-          <span className="text-primary font-mono mr-3 text-sm">root@admin:~# search</span>
+          <span className="text-primary font-mono mr-3 text-sm">search</span>
           <input
             type="text"
             value={searchTerm}
             onChange={handleSearch}
             className="bg-transparent border-none text-white w-full focus:ring-0 placeholder-gray-700 font-mono text-sm p-0"
-            placeholder="candidate_id --name *"
+            placeholder="name, email..."
           />
           <span className="block w-2 h-4 bg-primary cursor-blink ml-2" />
         </div>

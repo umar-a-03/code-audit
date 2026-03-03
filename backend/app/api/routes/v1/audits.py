@@ -6,7 +6,8 @@ Manages code audit jobs and their results.
 import logging
 from uuid import UUID
 from typing import List
-from fastapi import APIRouter, HTTPException, Query, status as status
+from fastapi import APIRouter, HTTPException, Query, status as status, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from app.api.deps.auth import CurrentUserDep
@@ -299,3 +300,163 @@ async def get_batch_status(
         created_at=batch.created_at,
         progress_percentage=progress_percentage,
     )
+
+
+@router.websocket("/{audit_id}/events")
+async def audit_events_websocket(
+    websocket: WebSocket,
+    audit_id: UUID,
+):
+    """WebSocket endpoint for real-time audit progress updates.
+
+    Clients can connect to receive real-time updates about audit progress.
+    Note: Full Redis pub/sub integration is TODO - currently returns basic status polling.
+
+    Args:
+        websocket: WebSocket connection.
+        audit_id: Audit ID to subscribe to updates for.
+
+    Yields:
+        JSON messages with audit progress updates.
+    """
+    await websocket.accept()
+
+    try:
+        # Send initial connection message
+        await websocket.send_json({
+            "type": "connected",
+            "audit_id": str(audit_id),
+            "message": "Connected to audit updates"
+        })
+
+        # TODO: Subscribe to Redis pub/sub for real-time updates
+        # For now, send periodic status updates
+        while True:
+            try:
+                # Get current audit status
+                audit_service = AuditService()
+                audit = await audit_service.get_by_id_and_client(
+                    audit_id=audit_id,
+                    client_id=None,  # Skip client check for broadcast
+                )
+
+                if audit:
+                    progress = 0
+                    if audit.status == "running":
+                        progress = 50
+                    elif audit.status == "completed":
+                        progress = 100
+
+                    await websocket.send_json({
+                        "type": "progress",
+                        "audit_id": str(audit_id),
+                        "status": audit.status,
+                        "progress": progress,
+                        "error_message": audit.error_message,
+                        "created_at": audit.created_at.isoformat() if audit.created_at else None,
+                        "completed_at": audit.completed_at.isoformat() if audit.completed_at else None,
+                    })
+
+                    # If completed, send final message and close
+                    if audit.status in ["completed", "failed", "cancelled"]:
+                        await websocket.send_json({
+                            "type": "final",
+                            "audit_id": str(audit_id),
+                            "status": audit.status,
+                        })
+                        break
+
+                # Wait before next update
+                import asyncio
+                await asyncio.sleep(2)
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error sending WebSocket update: {e}")
+                break
+
+    except WebSocketDisconnect:
+        logger.info(f"WebSocket disconnected for audit {audit_id}")
+    except Exception as e:
+        logger.error(f"WebSocket error for audit {audit_id}: {e}")
+    finally:
+        try:
+            await websocket.close()
+        except:
+            pass
+
+
+@router.delete("/batch/{batch_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_batch(
+    batch_id: UUID,
+    current_user: CurrentUserDep,
+):
+    """Delete a batch audit job.
+
+    Args:
+        batch_id: Batch job ID.
+        current_user: Current authenticated user.
+
+    Raises:
+        HTTPException: 404 if batch not found.
+    """
+    batch_service = BatchService()
+
+    # Verify ownership
+    batch = await batch_service.get_by_id_and_client(
+        batch_id=batch_id,
+        client_id=current_user.id,
+    )
+
+    if not batch:
+        raise NotFoundException("Batch job not found")
+
+    await batch_service.delete(batch_id)
+    return None
+
+
+@router.get("/{audit_id}/report")
+async def get_audit_report(
+    audit_id: UUID,
+    current_user: CurrentUserDep,
+):
+    """Get full audit report.
+
+    Args:
+        audit_id: Audit ID.
+        current_user: Current authenticated user.
+
+    Returns:
+        dict: Complete audit report with results.
+
+    Raises:
+        HTTPException: 404 if audit not found.
+    """
+    audit_service = AuditService()
+
+    audit = await audit_service.get_by_id_and_client(
+        audit_id=audit_id,
+        client_id=current_user.id,
+    )
+
+    if not audit:
+        raise NotFoundException("Audit not found")
+
+    # Get full audit details with results
+    report = {
+        "id": str(audit.id),
+        "status": audit.status,
+        "created_at": audit.created_at.isoformat() if audit.created_at else None,
+        "started_at": audit.started_at.isoformat() if audit.started_at else None,
+        "completed_at": audit.completed_at.isoformat() if audit.completed_at else None,
+        "error_message": audit.error_message,
+        "project_id": str(audit.project_id) if audit.project_id else None,
+        "repo_url": audit.project.repo_url if audit.project else None,
+        "branch": audit.branch,
+        "analysis_type": audit.analysis_type,
+        # Results (if available)
+        "result": None,  # TODO: Populate from AuditResult table
+    }
+
+    return JSONResponse(content=report)

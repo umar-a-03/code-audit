@@ -28,11 +28,10 @@ const Header = ({ user, breadcrumbs = [] }) => {
 
         {/* Desktop breadcrumbs */}
         <div className="hidden lg:flex items-center gap-2 text-sm font-mono">
-          <span className="text-primary/70">root</span>
           {breadcrumbs.map((crumb, index) => (
             <span key={index} className="flex items-center gap-2">
-              <span className="text-gray-600">/</span>
-              <span className={crumb.active ? 'text-white' : 'text-primary/70'}>
+              {index != 0 && <span className="text-gray-600">/</span>}
+              <span className={crumb.active ? 'text-white capitalize' : 'text-primary/70 capitalize'}>
                 {crumb.label}
               </span>
             </span>
@@ -41,13 +40,6 @@ const Header = ({ user, breadcrumbs = [] }) => {
 
         {/* Right side */}
         <div className="flex items-center gap-6">
-          {/* System Stats */}
-          <div className="hidden md:flex items-center gap-4 text-xs font-mono text-primary/70">
-            <span>CPU: 12%</span>
-            <span>MEM: 4.2GB</span>
-            <span>NET: 1Gbps</span>
-          </div>
-
           <div className="h-6 w-px bg-white/20" />
 
           {/* Actions */}

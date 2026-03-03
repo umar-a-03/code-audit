@@ -351,3 +351,20 @@ class BatchJobRepository:
 
         await self._session.flush()
         return batch
+
+    async def delete(self, batch_id: UUID) -> bool:
+        """Delete a batch job.
+
+        Args:
+            batch_id: Batch job ID.
+
+        Returns:
+            bool: True if deleted, False if not found.
+        """
+        batch = await self.get_by_id(batch_id)
+        if not batch:
+            return False
+
+        await self._session.delete(batch)
+        await self._session.flush()
+        return True

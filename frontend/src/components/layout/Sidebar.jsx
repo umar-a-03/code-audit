@@ -9,16 +9,10 @@ const navItems = [
   { path: '/settings', icon: 'settings_suggest', label: 'SETTINGS' },
 ];
 
-const Sidebar = ({ user }) => {
-  const { logout } = useAuth();
+const Sidebar = () => {
+  const { logout, user } = useAuth();
 
-  const defaultUser = {
-    name: 'ROOT_USER',
-    accessLevel: 'ACCESS_LVL_5',
-    avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuADtheZwePEO9juUGUtf5rk_PKTpz1O8PS6vGcaoEmxOMK-YX0CEitbLUPzcM7VfFIidHbYKgr_Cn1ZClLnx39Ao09l-P41hT6gYcVKrU2d-zP4-DOyaHMyYlh6fs6CL3EHUN1KftWspYNpQVI2WyO1uz7gTU7MNeJC5HA5VdVwkbBot3QUQ4sel_v_88gA1TTcnduXAazb2snNvtaw-yRmMQABAy3OkwW8580rwOw30r2ghFYhC43bo27ya7qN7f9hYX-i2BrOAR8'
-  };
-
-  const { name, accessLevel, avatar } = user || defaultUser;
+  const { name = 'Guest', email = '' } = user || {};
 
   return (
     <aside className="hidden lg:flex flex-col w-64 h-screen bg-oled-black z-40 relative flex-shrink-0">
@@ -69,21 +63,20 @@ const Sidebar = ({ user }) => {
           className="flex items-center gap-3 group w-full cursor-pointer"
           title="Logout"
         >
-          <div className="size-10 border border-primary/50 overflow-hidden relative shadow-neon-sm">
+          {/* <div className="size-10 border border-primary/50 overflow-hidden relative shadow-neon-sm">
             <img
               alt="User Avatar"
               className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-300"
               src={avatar}
             />
-          </div>
+          </div> */}
           <div className="flex-1 min-w-0 text-left">
             <p className="text-sm font-bold text-white leading-none truncate group-hover:text-primary transition-colors">
               {name}
             </p>
             <div className="flex items-center mt-1.5">
-              <span className="size-2 bg-neon-green rounded-full shadow-neon-green mr-2 animate-pulse" />
-              <p className="text-[10px] text-primary font-mono leading-none truncate">
-                {accessLevel}
+              <p className="text-[10px] text-gray-400 font-mono leading-none truncate">
+                {email}
               </p>
             </div>
           </div>
